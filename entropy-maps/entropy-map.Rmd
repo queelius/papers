@@ -1,7 +1,7 @@
 ---
 title: Entropy Maps
 date: '2021-06-17'
-abstract: 
+abstract: Entropy maps model the concept of Bernoulli maps, a probabilistic model designed to underpin the understanding and implementation of probabilistic data structures. Entropy maps are presented as a novel methodology for enabling oblivious functions through hashing mechanisms that map domain values to codomain values with prefix-free codes, thus facilitating operations without revealing plaintext data. By abstracting the probabilistic structure of Bernoulli maps, this study highlights their utility in propagating error probabilities and managing set membership queries in a manner that preserves privacy and security.
 output: 
   pdf_document:
     latex_engine: xelatex
@@ -64,7 +64,7 @@ to a prefix-free code for $1$ with probability $\varepsilon$, where $\varepsilon
 very small, e.g., $2^{-10}$.
 
 There are a countably infinite set of random hash functions which hash all 
-elements in $\mathcal{A} \subseteq \mathcal{X}$ to prefix-free codes for $1$ and all other elements, $\mathcal{A}' = \mathcal{X} \setminus \mathcal{A}$, to prefix codes
+elements in $\mathcal{A} \subseteq \mathcal{X}$ to prefix-free codes for $1$ and all other elements, $\mathcal{A}' = \mathcal{X} - \mathcal{A}$, to prefix codes
 either for $0$ or $1$. If we are choosing a random hash function
 that satisfies this property, then it is expected that $\varepsilon$ of the
 elements in $\mathcal{A}'$ will hash to a prefix-free code for $1$, and the
