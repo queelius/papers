@@ -1,6 +1,6 @@
 # Autoregressive Models: Projection of Test Data onto Training Data
 
-Recently, I watched a presentation on infini-grams, which utilize a suffix array to avoid precomputing $n$-grams and allow for arbitrary context lengths, up to a suffix that is found in the training data.
+Recently, I watched a presentation on [infini-grams](https://huggingface.co/spaces/liujch1998/infini-gram), which utilize a suffix array to avoid precomputing $n$-grams and allow for arbitrary context lengths, up to a suffix that is found in the training data.
 
 This sparked my interest as I had worked on a similar project for a LLM talk I gave for [SLUUG](https://www.stllinux.org/) (see my GitHub repo [sluug-talk-llm](https://github.com/queelius/sluug-talk-llm) and the [video](https://www.sluug.org/resources/presentations/media/2024/STLLINUX/2024-02-22_STLLINUX_2560x1440.mp4) of the talk) where I computed arbitrary-size $n$-grams (perhaps call it $*$-grams) using a recursive dictionary to store the training data prefix counts.
 
