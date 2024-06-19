@@ -1,47 +1,62 @@
-## Revolutionizing AI Training: Simple AR Models as Universal Learners with Latent Data Integration"
+## Simple AR Models as Universal Learners with Latent Data Integration
 
 ---
 
 ### Abstract:
-This paper investigates the potential of simple Autoregressive (AR) models to function as universal learners when trained with enriched datasets comprising both observable outputs and latent reasoning sequences. Inspired by recent advancements in the field, we propose an innovative training methodology that leverages large Language Models (LLMs) for the generation of synthetic data, subsequently distilled into simpler, more efficient AR models. Our focus is on enhancing AI interpretability, efficiency, and generalizability through this novel approach.
+This paper investigates the potential of simple Autoregressive (AR) models to
+function as universal learners when trained with enriched datasets comprising
+both observable outputs and latent reasoning sequences. Inspired by recent
+advancements in the field, we propose an innovative training methodology that leverages large Language Models (LLMs) for the generation of synthetic data, subsequently distilled into simpler, more efficient AR models. Our focus is on enhancing AI interpretability, efficiency, and generalizability through this novel approach.
 
 ---
 
 ### 1. Introduction:
-In the rapidly evolving landscape of machine learning, the pursuit of models that combine efficiency with powerful learning capabilities is unceasing. Among various architectures, Autoregressive (AR) models have garnered attention for their simplicity and effectiveness, especially in sequential data processing tasks. A recent paradigm shift, as suggested by the paper "[Simple Autoregressive Models are Universal Learners](https://arxiv.org/pdf/2309.06979.pdf)," posits that AR models, typically perceived as less complex, have the potential to achieve universal learning capabilities. This revelation paves the way for reimagining how we approach AI training, particularly in the context of model complexity versus data structure richness.
+In the rapidly evolving landscape of machine learning and LLMs, the pursuit of models that combine efficiency with powerful learning capabilities is unceasing. Among various architectures, Autoregressive (AR) models have garnered attention for their simplicity and effectiveness, especially in sequential data processing tasks. A recent paradigm shift, as suggested by the paper "[Simple Autoregressive Models are Universal Learners](https://arxiv.org/pdf/2309.06979.pdf)," posits that AR models, typically perceived as less complex, have the potential to achieve universal learning capabilities. This revelation paves the way for reimagining how we approach AI training, particularly in the context of model complexity versus data structure richness.
 
-Central to this discussion is the integration of both observable and latent data in AR models. Traditional AR models focus on predicting future data points (\(X_{t+1}\), \(X_{t+2}\), ...) based on past observations (\(X_t\), \(X_{t-1}\), ...). However, this approach often overlooks the latent dimensions of data – the hidden, underlying factors that significantly influence the observable outputs. By incorporating these latent elements, represented as \(H = \{h_1, h_2, ..., h_m\}\), into the training process, we propose to enhance the AR models' predictive power and interpretability.
+Central to this discussion is the integration of both observable and latent data in AR models. Traditional AR models focus on predicting future data points $X_{t+1}, X_{t+2}, \ldots$ based on past observations $X_t, X_{t-1}, \ldots$. However, this approach often overlooks the latent dimensions of data – the hidden, underlying factors that significantly influence the observable outputs. By incorporating these latent elements, represented as $H = \{h_1, h_2, ..., h_m\}$, into the training process, we propose to enhance the AR models' predictive power and interpretability.
 
 This paper aims to explore this enhanced AR model framework, focusing on the methods of generating rich training datasets through large LLMs and the subsequent distillation process into simpler AR models. We hypothesize that this approach not only streamlines the training of efficient and interpretable AI systems but also unlocks their potential as universal learners.
 
 ---
 
-### 2. Theoretical Background and Model Architecture:
+### Theoretical Background and Model Architecture:
 The foundation of any AR model lies in its ability to predict future values in a sequence based on its past values. Mathematically, this is represented as:
-\[ P(X_{t+1} | X_t, X_{t-1}, ...) \]
-where \(X_t\) denotes the observable data at time step \(t\). Traditional AR models excel in capturing the dependencies within this observable data.
+$$
+P(X_{t+1} | X_t, X_{t-1}, \ldots)
+$$
+where $X_t$ denotes the observable data at time step $t$. Traditional AR models excel in capturing the dependencies within this observable data.
 
-However, the introduction of latent data, or hidden states, represented as \(H_{t,i}\), where \(i\) indexes the latent elements associated with time step \(t\), extends the model’s capability. The enriched AR model now considers both the observable and latent factors, formulated as:
-\[ P(X_{t+1} | H_{t+1,k_{t+1}}, ..., H_{t,1}, X_t, ...) \]
-In this structure, \(H_{t,i}\) captures the underlying, unobservable factors influencing the sequence, providing a more comprehensive understanding of the data.
+However, the introduction of latent data, or hidden states, represented as $H_{t,i}$, where $i$ indexes the latent elements associated with time step $t$, extends the model’s capability. The enriched AR model now considers both the observable and latent factors, formulated as:
+
+$$
+P(X_{t+1} | H_{t+1,k_{t+1}}, \ldots, H_{t+1,1}, X_t, \ldots)
+$$
+
+In this structure, $H_{t,i}$ captures the underlying, unobservable factors influencing the sequence, providing a more comprehensive understanding of the data.
 
 This enhanced model architecture suggests that even simple AR models have the potential to function as universal learners, given the right data structure. The presence of latent data embeds a deeper level of complexity and context within the model, enabling it to learn and predict a broader range of functions and relationships.
 
-### 2. Synthetic Data Generation Using Large LLMs:
+### Synthetic Data Generation Using Large LLMs:
 
 The generation of synthetic data using large Language Models (LLMs) is a critical component in training enriched AR models. This process involves leveraging the advanced capabilities of LLMs to create training datasets that are not just rich in observable data, but also abundant in latent reasoning sequences.
 
 **Creating Initial Question-Answer Pairs**:
+
 - LLMs are tasked with generating answers to a wide array of questions. This is done using a chain-of-thought or step-by-step reasoning approach, ensuring each answer is accompanied by a coherent sequence of reasoning steps.
+
 - Each generated sequence forms a narrative that starts with a question, progresses through a series of reasoning steps (latent data), and culminates in an answer (observable data).
 
 **Generating Diverse Reasoning Paths**:
+
 - For each question-answer pair, the LLM is re-prompted to generate alternative intermediate reasoning paths. This process is akin to asking the model to "think" about the problem in different ways to arrive at the same conclusion.
+- 
 - The resulting data captures a spectrum of reasoning styles, providing a rich training ground for the student AR model to learn the diverse ways a problem can be approached and solved.
 
 **Mathematical Representation of Synthetic Data**:
-- The synthetic dataset can be represented as a collection of sequences: \( \{ (Q_1, H_{1}, A_1), (Q_2, H_{2}, A_2), ..., (Q_n, H_{n}, A_n) \} \), where \(Q\) represents the question, \(H\) the latent reasoning steps, and \(A\) the answer.
-- Each \(H_i\) in the dataset varies, reflecting the diversity in reasoning for the same \(Q\) and \(A\).
+
+- The synthetic dataset can be represented as a collection of sequences. Denote the question or problem by $Q$ and the solution by $A$. Then, for each $(Q,A)$ pair, we expand that to $\{ (Q, H_1, A), (Q, H_2, A), \ldots, (Q, H_n, A) \}$, where each $H_j$ represent a sequence of latent reasoning steps to transform $Q$ into $A$.
+
+- Note that each $H_i$ in the dataset varies, reflecting the diversity in reasoning for the same $Q$ and $A$. It may be useful to give them many different ways of solving the same problem, and the student model can learn from this diversity.
 
 ---
 
@@ -50,7 +65,7 @@ The generation of synthetic data using large Language Models (LLMs) is a critica
 Once the synthetic dataset is generated, the next step involves distilling the knowledge from the large LLM (teacher) into the smaller, more efficient AR model (student).
 
 **Use of Cross-Entropy Loss for Distillation**:
-- The distillation process employs Cross-Entropy Loss, denoted as \( -\sum y \log(p) \), where \(y\) is the target output from the teacher model, and \(p\) is the student model's predicted probability.
+- The distillation process employs Cross-Entropy Loss, denoted as $-\sum y \log(p)$, where $y$ is the target output from the teacher model, and $p$ is the student model's predicted probability.
 - This loss function is particularly effective in ensuring that the student model accurately learns the probability distributions of both the answers and the intermediate reasoning steps as provided by the teacher model.
 
 **Balancing Observable and Latent Data Learning**:

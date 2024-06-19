@@ -1,10 +1,15 @@
-# Autoregressive Models: Projection of Test Data onto Training Data
+# Autoregressive Models: Inductive Biases and Projections
+
+### Abstract
+This paper explores the use of inductive biases and projection functions in autoregressive (AR) models to enhance out-of-distribution (OOD) generalization. We revisit the concept of infini-grams, which leverage suffix arrays to manage arbitrary context lengths efficiently. This approach is compared to traditional $n$-gram models, highlighting its advantages in sample efficiency and computational scalability. We delve into various inductive biases, such as the recency bias, shortest edit distance, and semantic similarity, illustrating their impact on AR model performance. By framing OOD generalization as a projection problem, we propose strategies to optimize these projections through meta-learning and nested optimization. Furthermore, we discuss the integration of classical information retrieval techniques and pre-trained language model embeddings to enhance the semantic relevance of projections. Our findings suggest that combining symbolic AI methods with deep learning representations can yield more interpretable and sample-efficient AR models, with broad applications in natural language processing, code generation, and scientific discovery.
+
+## Introduction
 
 Recently, I watched a presentation on infini-grams, which utilize a suffix array to avoid precomputing $n$-grams and allow for arbitrary context lengths, up to a suffix that is found in the training data.
 
-This sparked my interest as I had worked on a similar project for a LLM talk I gave for [SLUUG](https://www.stllinux.org/) (see my GitHub repo [sluug-talk-llm](https://github.com/queelius/sluug-talk-llm) and the [video](https://www.sluug.org/resources/presentations/media/2024/STLLINUX/2024-02-22_STLLINUX_2560x1440.mp4) of the talk) where I computed arbitrary-size $n$-grams (perhaps call it $*$-grams) using a recursive dictionary to store the training data prefix counts.
+This sparked my interest as I had worked on a similar project for a LLM talk I gave for SLUUG at [https://www.stllinux.org](https://www.stllinux.org/) (see my GitHub repo [https://github.com/queelius/sluug-talk-llm](https://github.com/queelius/sluug-talk-llm) and the video fo the talk at [https://www.sluug.org/resources/presentations/media/2024/STLLINUX/2024-02-22_STLLINUX_2560x1440.mp4](https://www.sluug.org/resources/presentations/media/2024/STLLINUX/2024-02-22_STLLINUX_2560x1440.mp4)) where in part of the talk I demonstrated arbitrary-size $n$-grams using a recursive dictionary to store synthetic training data prefix counts to implement a crude expression tree evaluator.
 
- Since my data was sparse synthetic data (expression trees and their evaluations), I was able to use my relatively inefficient approach to compute very large $*$-grams. The infini-gram approach is more efficient and generalizes to any kind of data, so they definitely had a more practical solution.
+Since my data was sparse synthetic data (expression trees and their evaluations), I was able to use a relatively inefficient approach to compute very large $n$-grams. The infini-gram approach is more efficient and generalizes to any kind of data, so they definitely had a more practical solution.
  
 The infini-gram model is an autoregressive (AR) model that predicts the next token based on the longest suffix in the training data that matches the context. Essentially, they are finding some *projection* of the input (context) to the training data to allow the AR model to generate coherent text continuations from inputs it has never seen before. This is known as out-of-distribution (OOD) generalization, where we are trying to generalize to tasks (like predict continuations of an input never seen before) that is not in the training data.
  
@@ -68,186 +73,163 @@ $$
 However, we do not have *infinite* training data, so we need to find a way to generalize to OOD data, like continuations of the input that the DGP would plausibly produce but are not in the training data. We call this *out-of-distribution* (OOD) generalization, and it is a key challenge in machine learning. Ideally, we want the AR model to generate plausible continuations of any input from very small amounts of training data $D$.
 A primary way to do this is to *constrain* the model using what we call *inductive biases*.
 
-The projection function $\operatorname{longest\_suffix} is an example of an inductive bias. It is a way for the model to find the most relevant part of the training data to the input to give it some ability to generalize OOD on the task of predicting the next token (or, equivalently, generating continuations of the input).
+The projection function $\operatorname{longest\_suffix}$ is an example of an inductive bias. It is a way for the model to find the most relevant part of the training data to the input to give it some ability to generalize OOD on the task of predicting the next token (or, equivalently, generating continuations of the input).
 
-We formalize this idea of projection as an *inductive bias* and discuss how it can be used to improve the sample efficiency of AR models.
+We formalize this idea of projection as an *inductive bias* and discuss how it can be used to improve the sample efficiency of both $n$-gram models and AR models, like transformers, LSTMs, and RNNs.
 
 ## Inductive Biases
 
 The projection function $\operatorname{longest\_suffix}$ is what we call an *inductive bias*. Inductive biases are assumptions or constraints that help the model generalize from the training data to unseen data.
+This is known as OOD (out-of-distribution) generalization. Since the empirical distribution (the training data) converges to the true distribution (the DGP) as the sample size goes to infinity, the key challenge is finding *sample efficient* models.
 
-Given two learning algorithms, $A$ and $B$, if $A$ requires fewer samples to do well on a task than $B$, then $A$ is more sample-efficient than $B$ on that task. In the context of AR models, the task is to predict the next token given a sequence of previous tokens. The quality of the prediction depends on the context, and sample efficiency refers to the number of training samples required to achieve a certain level of performance.
+Given two learning algorithms, $A$ and $B$, if $A$ requires fewer samples to do well on a task than $B$, then $A$ is more sample-efficient than $B$ on that task. In the context of AR models, the task is to predict the next token given a sequence of previous tokens. One way to improve sample efficiency is to choose an inductive bias that provides the model with more information about the task or the DGP, allowing it to generalize to OOD data more effectively and with fewer samples.
 
-The primary way to improve sample efficiency is to incorporate inductive biases into the learning algorithm. Inductive biases are assumptions or constraints that help the model generalize from the training data to unseen data. This is known as OOD (out-of-distribution) generalization.
-
-The \operatorname{longest\_suffix} projection is an inductive bias tha we might label the *recency bias*. The recency bias has several advantages in the context of AR models:
+The $\operatorname{longest\_suffix}$ projection is an inductive bias that we might label the *recency bias*. The recency bias has several advantages:
 
 1. It is computationally efficient, as shown by the suffix array data structure used in the infini-gram model. It only requires a linear scan of the training data to find the longest suffix. This scalability is crucial for training on large datasets, as the time complexity of the recency bias is $O(n)$, where $n$ is the length of the context.
 
 2. It corresponds to a simple inductive bias that is easy to understand, implement, and justify. If the future is like the past, then the most recent past is often the most relevant data point. This is particularly relevant for tasks like language modeling, where the context is often a sequence of words that are related to each other in a temporal order and in which the most recent words are often the most relevant for predicting the next word.
 
-However, the recency bias has some limitations:
+Clearly, the recency bias may not always help to find the most relevant context in the training data, e.g., the most relevant context may be at the start of a document. However, even when the most relevnat context is the most recent, the $\operatorname{longest\_suffix}$ may fail to properly use it. For example, if the context is "the dog ran after the" and we ask it to predict the next word, but the training data only contains "the dog chased the cat", the longest suffix is the highly uninformative word "the". We see that the naive longest suffix match fails to take into account the semantic similarity between token sequences like "chased" and "ran after".
 
-1. It may not always find the most relevant context in the training data. For example, if the most relevant context is not the most recent one, the recency bias fails to find it.
-
-It is very restrictive in terms of the kind of OOD (out-of-distribution) data it can generalize to, requiring the OOD data to be similar to the training data in terms of the longest suffix. This is a strong assumption that may not hold in practice.
-
-2. It does not take into account the semantic similarity between tokens or sequences. For example, if the context is "the dog chased the cat" and the training data contains "the dog chased the kitty", the longest suffix is the empty string, and the recency bias will not be able to find a match, even though "cat" and "kitty" are semantically similar.
-
-Points (a) and (b) suggest some possible inductive biases that can be used to improve the OOD generalization. Like with the recency bias, these biases can be seen as a kind of projection of the input onto the training data. Let us formally write down the problem of OOD generalization in the context of AR models as a projection problem:
+These challenges suggest some possible inductive biases that can be used to improve the OOD generalization of $\Pr{}_{\hat\theta}$. We consider the set of inductive biases that can be formulated as *projections* of the input (context) onto the training data. Let us formally write down the problem of OOD generalization in the context of AR models as a projection problem:
 
 $$
-\Pr\{w_t \mid \operatorname{projection}(w_{<t}, D), D\},
+\Pr\{w_t \mid \operatorname{proj}_D(w_{<t}), D\},
 $$
-where $\operatorname{projection}$ is a function that maps the context $w_{<t}$ to a subset of the training data $D$ that is most relevant to the context and for producing continuations of the input that the data generating process (DGP) would *likely* produce.
+where $\operatorname{proj}_D$ is a function that maps the input $w_{<t}$ to a subset of the training data $D$ that is most relevant for producing continuations of the input that the data generating process (DGP) would *likely* produce.
 
+## Choosing the Projection Function
 
+Let us parameterize the projection function as
 
-We can draw inspiration from techniques developed in information retrieval (IR) and natural language processing (NLP) to design these context reduction and rewriting strategies in order to generate inductive biases that yield more sample-efficient learning algorithms. It is worth pointing out that in these high-dimensional spaces, essentially every point is an OOD point, so the goal is to find the most relevant points in the training data to generalize to.
+$$
+\mathcal{F} = \{ \operatorname{proj}_D(x; \beta) \mid \beta \in \mathcal{B} \},
+$$
 
-## Shortest Edit Distance: Similarity Bias
+where $\beta$ is an index or label that specifies the projection. For example, $\beta = 1$ could be a label
+for $\operatorname{longest\_suffix}$, or it could be something more complicated based on the
+space of possible projections $\mathcal{F}$.
 
-Shortest edit distance finds the shortest sequence of operations (insertions, deletions, and substitutions) transforming the current context $ w_{<t} $ into a sequence in $ D $.
-    
-The recency bias can be seen as a special case of the edit distance bias where we only allow deletions from the end of the context until a match is found. Intuitively, we can think of the recency bias as a greedy algorithm for finding the shortest edit distance.
+We can choose a projection function from $\mathcal{F}$ by choosing a $\beta$ in
+$\mathcal{B}$, which is frequently a discrete optimization problem.
 
-Consider a scenario where, instead of finding the longest suffix in the training data, we search for the shortest edit distance from the prompt. This approach allows for a more flexible and potentially more accurate matching process.
+We can choose the projection function in two fundamental ways. A common approach is to
+simply choose a value using domain knowledge. However, by lessons of the bitter kind, we know that this is not always the best approach, as it requires human expertise that is often limited.
+A more general approach is to treat this as a secondary optimization problem, where we treat
+$\beta$ as a parameter of the AR model and estimate it from the data. This is a form of *meta-learning* where we are learning the projection function from the data $D$:
+
+$$
+\hat\beta = \arg\max_{\beta} \prod_{t=1}^T
+\Pr{}_{\!\hat\theta}(w_t \mid \operatorname{proj}_{D'}(w_{<t}; \beta)),
+$$
+where $D'$ is the held-out validation data used to estimate the quality of the projection function
+and
+$$
+\hat\theta | \beta = \arg\max_{\theta} \prod_{t=1}^T \Pr{}_{\!\theta}(w_t \mid \operatorname{proj}_{D}(w_{<t}; \beta)).
+$$
+
+We see that we may want to estimate $\hat\theta$ on the training data using the
+projection function parameterized by $\beta$ and then estimate $\hat\beta$ on the validation data
+using the estimated parameters $\hat\theta$. This is a form of *nested optimization* where we are
+optimizing the parameters of the AR model and the projection function simultaneously.
+
+If the projection functions do not affect the performance of the AR model on the
+training data $D$, then we can optimize them separately. However, if the projection functions
+do affect the performance of the AR model on the training data, then we need to optimize them
+simultaneously in this two-step process. One way in which the projection functions can affect
+the performance of the AR model is by changing the distribution of the training data that the
+AR model sees, which can change the parameters of the AR model that are estimated from the data.
+For instance, $\beta$ may include a parameter that limits the maximum length of the context, which
+can change the parameters of the AR model that are estimated from the data.
+
+Next, we consider the space of possible projection functions $\mathcal{F}$.
+We can draw inspiration from techniques developed in information retrieval (IR),
+natural language processing (NLP), and classical AI informed search strategies
+to design projections (inductive biases) that yield more sample efficient
+algorithms that improve OOD generalization. It is worth pointing out that in
+high-dimensional spaces, essentially every input is OOD, so designing effective
+inductive biases (projections) is crucial for generalization.
+
+## Similarity Bias: Shortest Edit Distance
+
+Shortest edit distance finds the shortest sequence of operations (e.g., swaps, insertions, deletions, and substitutions) transforming the current context $w_{<t}$ into a sequence in $D$.
+
+The recency bias can be seen as a special case of the similarity bias where we only allow deletions from the end of the context until a match is found.
+
+A justification for using shortest edit distance is based on the idea of similarity: if two sequences are similar, they are more likely to have similar continuations. Edit distance is a way to measure the similarity between two sequences based on the minimum number of operations needed to transform one into the other.
 
 ### Example
 
-Let's take a prompt:
+Let's use the earlier example, where we have as input "the dog ran after the" and the training data
+$D$ contains the following:
 
-$$
-x = a a b b c d d d a
-$$
+1. "a dog chased the cat in the garden"
+2. "the dog chased the cat, but the cat climbed a tree and got away"
+3. "the mouse ran from the cheese trap after setting it off"
 
-And assume the longest suffix in the training data is:
+The longest suffix is "the". What is shortest edit distance to find a match in the training data? We can perform the following two edits: substitute "ran" with "chased" and delete "after", resulting in "the dog chased the" which has a longest suffix match equal to "the dog chased the" (2), and so the next
+token predicted is "cat". Thus, a completion by the model might be: "the dog ran after the cat, but the cat climbed a tree and got away". The training data does not contain this completion, but the shortest edit distance found a *relevant* projection to the training data.
 
-$$
-D = \cdots d d d a A \cdots
-$$
-
-In this case, the longest suffix in $x$ that finds a match in $D$ is $d d d a$. The next token in the training data is $A$. We discard all other
-data in the prompt and predict $A$ as the next token.
-
-Now, consider another sequence in the training data:
-
-$$
-\cdots a a b b C d d d a B \cdots d d d a A \cdots
-$$
-
-To make $x$ match this sequence only requires a single edit (changing the fifth token `C` to `c`). This potentially simpler transformation might provide a more relevant context. Suppose we choose to use the shortest edit distance instead of the longest suffix match. In that case, we would predict `B` as the next token.
-
-This kind of operation often makes more sense in practice, as it allows for more flexibility in matching the context to the training data when the exact match is not available but a close match is. This kind of flexibility can be crucial for generalization to OOD data, and we might call this inductive bias the similarity bias: if you find yourself in a situation that is very similar to a situation you have seen before, you should act in a similar way.
-
-### Composing Inductive Biases
-
-We can apply the recency bias in addition to the similarity bias, by making different edits have different costs associated with them. To model the concept of the recency bias, edits further back in the history of the context should be more costly. This is a form of the recency bias that is more flexible than the simple longest suffix match, and encourages
-finding more recent similar contexts in the training data.
-
-### Challenges and Optimization
-
-The longest suffix match is very efficient to compute. The shortest edit distance can be far more complex, but dynamic programming can be used to find the shortest edit distance relatively efficiently. Approximate methods like beam search can also be used to find the shortest edit distance.
-
-## Information Retrieval (IR) Techniques
-
-A significant issue with *shortest edit distance* is that it treats all single edits as having a uniform cost (a kind of uninformed search in graph search). Ideally, when we replace a token with another, we want to preserve the meaning of the context. Thus, some single token replacements should be more costly than others, based on how much they change the semantics.
-
-Classical IR (Information Retrieval) techniques like BM25, query expansion, and semantic similarity measures can be used to enhance
-the edit distance with a cost based on semantic similarity.
-
-Leveraging techniques from information retrieval, we can do any (or all)
-of the following:
-
-1. Expand the training data (query expansion) to include semantically similar sequences and thus increase the effective size of the training
-data. This bias decreases the expected edit distance needed to find a match in the training data. Thus, a large edit distance in the original space may be a small edit distance in the expanded space.
-
-2. Use BM25 or other similarity measures to find the most similar sequences in the training data. This bias can be used to find the
-most relevant sequences in the training data to the current context,
-even if they are not exact matches. Once a similar sequence is found
-and decided to be a good match, the edit distance to that sequence
-can be calculated and the prediction made based on that sequence.
-
-3. Stemming and lemmatization can be used to reduce the vocabulary
-size and thus the edit distance needed to find a match in the training
-data. This is an implicit form of query expansion and allows for
-more abstract representations of the training data.
-
-This allows us to assign a cost to edits based on the semantic similarity between tokens or sequences. For example, replacing "dog" with "cat" might have a lower cost than replacing "dog" with "train" because "dog" and "cat" are more semantically related.
-
-Predictive modeling now takes place over this more abstract representation
-space, which can be more sample efficient. However, when we generate sequences, if the end product is, say, high-quality text, we may have to decode the stemmed or lemmatized representations back to unstemmed or unlemmatized forms, which can be a challenge.
+What else could we have found within two edits? We could have substituted "dog" with "mouse" and "after" with "from", resulting in the input "the mouse ran from the" and the completion "the dog ran after the cheese trap after setting it off". This is a less plausible completion for the DGP, and things could go much worse, but we see that just counting the number of edits can lead to a poor projection onto the training data.
 
 ### Challenges
 
-Each of these approaches are essentially hand-crafted forms of feature
-or representation engineering. They are not learned from the data, but are designed by human experts to help the model generalize OOD more effectively (increase sample efficiency).
+As the example demonstrated, a primary challenge with shortest edit distance is that it treats all single edits as having a uniform cost. Ideally, when we edit the input, we want to preserve the "meaning" of the context. Thus, some edits should be more costly than others, based on how much they change the meaning
+of the input.
 
-Since human expertise is often limited and frequently even domain experts
-do not know how to design good representations, hand-crafted features do not scale with training data and compute. See "The Bitter Lesson" by Rich Sutton for more on this, where the primary lesson is that what works best in practice are algorithms that scale to data and compute.
+Also, the shortest (least-cost) edit distance, particularly when we combine it with non-uniform costs, is more computationally intensive than the longest prefix projection. However, it is tractable, e.g., graph
+search in GOFAI. Approximate methods like Monte Carlo Tree Search (MCTS) can also be used to find
+approximate solutions.
 
-Learning sample efficient representations of the data is the primary driver of OOD generalization. *Deep Learning* is about learning these representations from the data.
+## Semantic Similarity: Least-Cost Edit Distance
 
-## Token and Sequence Embeddings
+A significant issue with *shortest edit distance* is that it treats each edit as having a uniform cost (a kind of uninformed search). A simple extension is to add a cost to each edit based on some measure of semantic similarity between tokens or sequences. Once we have a cost in place, we can use classical search techniques, like A* search, to efficiently find the most relevant sequences in the training data to the current context.
 
-Taking "The Bitter Lesson" to heart, instead of using hand-crafted features, we can embeddings (representations) learned by LLMs to compute
-similarity measures; that is, we can use token and sequence embeddings
-learned by pre-trained models like BERT, GPT, or Word2Vec to calculate the similarity between tokens and sequences.
+Classical IR (Information Retrieval) techniques like BM25, query expansion, and semantic similarity measures can be used to assign costs to edits.
 
-How does this work in practice? We have a large corpus of text data, and we train a model like BERT or GPT on this data. The model learns to predict the next token given the previous tokens. In the process, it learns a representation of each token and sequence in the data. These representations are called embeddings.
+1. Input expansion (query expansion): Expand the input to multiple possible sequences that are similar to the input.
 
-In our infini-gram model, we have a large corpus of training data $D$ and when given an input $w_{<t}$ (context), it predicts the next token $w_t$ using the formalism $P(w_t | w_{<t}, D)$.
+2. Treat the input like a search query in IR and use BM25 or other similarity measures to find the most similar sequences in the training data. We then define the projection function as:
 
-Suppose $w_{<t}$ is not in the training data $D$. We can use the embeddings learned by the LLM to calculate the similarity between the context $w_{<t}$ and subsets of the training data.
+$$
+\operatorname{proj}_D(x;\beta) = \arg\max_{y \in \operatorname{segments}_\beta(D)} \operatorname{similarity}_\beta(x, y),
+$$
 
-> We can even precompute these embeddings and store them in a vector
-> storage database for fast retrieval, but this is not strictly necessary.
+where $\operatorname{segments}_\beta(D)$ is a segmentation strategy of the data $D$ into segments (e.g., sentences paragraphs) and $\operatorname{similarity}_\beta$ is a similarity measure between the input $x$ and the segment $y$, e.g., cosine similarity or Euclidean distance between embeddings or some tf-idf measure, like BM25.
 
-We can then use this similarity to assign a cost to edits based on the semantic similarity between $w_{<t}$ and parts of the training data. This allows us to make more informed decisions about which edits to make to the context to find a match in the training data.
+We can use the inferred $\beta$ to find the most relevant segments in the training data to the input, and then use the AR model to generate continuations of the input based on these segments.
 
-### Example: `word2vec`-like Token Embeddings
+### Inductive Bias to Favor Cohesive and Smooth Continuations
 
-Consider the prompt:
+If we change the input too much, we may lose the coherence and smoothness of the text, as the model may generate completions that are incoherent or nonsensical when we map the input back to its original form.
+Thus, we may want to compose the similarity bias with a recency bias that favors keeping the most recent tokens in the context minimally edited. We can do this by generalizing the recency bias to assign a cost to each edit based on the position of the token in the context, where a higher cost is associated with changing more recent tokens in the input.
 
-```
-The dog chased the cat.
-```
+### Challenges
 
-And a training sequence:
+Learning sample efficient representations of the data is the primary driver of OOD generalization. *Deep Learning* is about learning these representations from the data. We can use pre-trained models like BERT and GPT to learn embeddings of the data that are more semantically meaningful than the raw tokens. These embeddings can be used to compute the similarity between tokens or sequences and assign costs to edits based on this similarity.
 
-```
-The dog chased the train.
-```
+If we use LLM embeddings, it may be costly to compute the similarity between the input and all segments in the training data. We could, however, take the training data and compute embeddings for each segment and store them in a vector storage database for fast retrieval:
 
-Using traditional edit distance, changing "cat" to "train" may be a single token subsitution. However, with word embeddings, we can assign a lower cost to semantically similar words. For instance, changing "dog" to "cat" might have a lower cost than changing "dog" to "train" because "dog" and "cat" are more semantically related.
+$$
+\operatorname{proj}_D(x;\beta) = \arg\max_{y \in \operatorname{segments}_\beta(D)} \operatorname{similarity}_\beta(\operatorname{embed}(x), \operatorname{embed}(y)),
+$$
 
-This can be visualized as:
+where $\operatorname{embed}$ is a function that maps tokens or sequences to embeddings. Since we have all of the embeddings in a vector storage database, the above $\arg\max$ operation can be computed very efficiently at the cost of precomputing and storing the embeddings.
 
-```
-Prompt:     The dog chased the cat.
-Training:   The dog chased the train.
-Edit Cost:                     ^ (cat -> train)
-```
+## Experimental Results
 
-If we have embeddings for these words, we can calculate the cosine similarity or Euclidean distance between them, assigning a lower cost to edits with high similarity. This allows for more sophisticated context reduction and matching strategies.
+We can compare the performance of the recency bias, shortest edit distance, and semantic similarity bias on a language modeling task. We can use perplexity as a measure of the model's performance on the task, where lower perplexity indicates better performance.
 
-#### Example: Sequence Embeddings
+### Python Code
 
-Taking this idea to the next level, we can incorporate embeddings for sequences of tokens. This means we can replace observed sub-sequences that are not in the training data with similar sub-sequences that are in the training data. 
 
-Consider a prompt:
-
-```
-The quick brown fox jumps over the lazy dog.
+```python
+# code here
 ```
 
-If this exact sequence is not in the training data, we can find a semantically similar sequence, such as:
+For more details, see the [GitHub repository](https://github.com/queelius/ngram-projections) for this project.
 
-```
-The fast brown fox leaps over the sleepy dog.
-```
-
-Using sequence embeddings, we can determine that the cost of replacing the original sequence with this similar sequence is low because the meaning is preserved. Even if we replace a large sequence with another large sequence, the edit cost can be low if the learned embeddings capture the meaning effectively.
 
 ## Conclusion
 
@@ -262,3 +244,43 @@ Even if an exact match is found in the training data, we often still want to exp
 Further research into optimizing these techniques and seamlessly integrating them into AR frameworks promises to advance natural language processing, driving innovation in computational linguistics and machine learning, and help facilitate the development of more intelligent and creative AI systems that can be more easily explained and understood than current neural models, which are often seen as black boxes with inscrutable decision-making processes.
 
 By leveraging a LLMs embeddings for sample efficient representatations and classical symbolic AI techniques for context reduction and matching, we can build more interpretable and efficient AR models that can be used in a wide range of applications, from chatbots to code generation to scientific discovery and beyond.
+
+
+## Appendices
+
+### A: Reward Functions {-}
+
+Previously, we discussed the idea of projecting the input onto the training data to find the most relevant context for predicting the next token that the DGP is likely to produce.
+
+However, we are normally not interesed in predicting the next token, but *biasing* the model to generate outputs that are more likely to score well on some task. For example, if the task is to generate a coherent text continuation, we want to bias the model to generate text continuations that are coherent and correct, even if the the DGP, given the input, is more likely to generate very different continuations (e.g., toxic, incoherent, or incorrect).
+
+One way to fine-tune the model to generate more effective outputs is to use a reward function that scores the outputs based on some task-specific criteria. A nearly universal approach is to take your reward function and
+produce $k$ samples from the model, then score each sample using the reward function, and then sample these outputs based on their scores, e.g., $\Pr{}_{\hat\theta}\{w_{t:(t+k)} \mid w_{<t}\} \propto \exp\{R(w_{1:(t+k)})\}$.
+
+However, what if we want to go beyond predicting the DGP's next token and instead generate outputs that are more effective at solving a particular task?
+
+### B: Data Transformation {-}
+
+The training data $D$ is the primary source of information we have about the DGP. However, the training data may not be in the optimal form for solving the task we have in mind.
+
+So, a final inductive bias we can consider is data transformation. We can transform the training data into a more suitable form for solving the task at hand. One way which can be particularly effective at improving the
+sample efficiency of the model is to transform the training data into a more abstract representation space.
+
+There are a lot of fancy things you can do, but in interest of transparency and interpretability, we will consider a simple transformation: stemming or lemmatization.
+
+Both of these are computationally efficient techniques that reduce the vocabulary size and thus increase the probability of finding relevant projections of the input onto the training data. They are also simple to
+implement and understand, making them a good choice for a first pass at data transformation.
+
+Essentially, this transformation allows for "reasoning" over more abstract representations of the DGP, facilitating OOD generalization but at a loss of some information and expressiveness.
+
+> Predictive modeling now takes place over this more abstract representation space, which can be more sample efficient. However, when we generate sequences, if the end product is, say, high-quality text, we may have to decode the stemmed or lemmatized representations back to unstemmed or unlemmatized forms, which can be a challenge.
+
+### Other Kinds of Inductive Biases {-}
+
+We formalized most of our inductive biases as projections of the input onto the training data. However, we can consider other kinds of inductive biases that can be used to improve the sample efficiency of AR models
+that directly affect the AR model's probabilty distribution.
+
+In particular, we can also consider more complex inductive biases that involve pattern matching and context-free grammars. For example, we can use a context-free grammar to define the space of possible continuations of the input.
+
+In theory, we could have a number of production rules on the input that restrict the set of possible continuations to some CFG. This is a more hand-crafted inductive bias that requires more domain knowledge and human expertise to implement, but it may be appropriate in some circumstances, such as when the task requires generating text that follows a specific structure or format, like JSON or Python code.
+
