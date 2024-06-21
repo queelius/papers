@@ -15,46 +15,62 @@ Since it is trained end-to-end, using the same LLM to both generate the API call
 > but she would predictably only divide the $x$  by $3$, yielding the
 > incorrect result $y = x + .
 
-The LLM may have competently learned to generate the API call `solve("y", "3 y = 3 x + 3")`, yielding the **enriched** training data:
+The LLM may have competently learned to generate the API call:
 
-> ```latent
-> Input: `solve("y", "3 y = 3 x + 3")`
-> Output: `y = x + 1`
-> ```
-> ```observable
-> Mary struggled with alegebra. When she would try to solve variables
-> in terms of, say, $y$, in $3 y = 3 x + 3$, she would often see that
-> she needs to divide both sides by $3$ to isolate the $y$ on the LHS,
-> but she would predictably only divide the $x$  by $3$, yielding the
-> incorrect result $y = x +
-> ``` 
+`solve("y", "3 y = 3 x + 3")`
 
-The output from the API call is **latent** in the sense that it is not used to compute the loss, but is ostensibly only used to help the LLM predict the next token, `3`, from the obserable data. However, in this case, the output from the
-API call suggests the output should be `1` (which is technically correct, but not in the given co   ntext), and thus may result in reducing prediction quality.
+This yields the **enriched** training data:
 
-The LLM must be trained end-to-end on latent enrichments from tools so that it learns not only does it learn how to use APIs, but **when** to use them based on the context. The LLM may ignore the latent information from the API call, or use it appropriately, to predict the correct next token, but at face value it seems like the latent information may induce a bias that may be difficult to overcome. Ideally, the LLM would either not use the `solve` to enrich the context with latent data, or it would use
-some *other* tool. For instance, it may have used a `let's think step by step` tool to generate the following **enriched** training data:
+```json
+{
+  "latent": 
+    {
+      "input": "solve(y, 3y = 3x + 3)",
+      "output": "y = x + 1"
+    },
+  "observable":
+    "Mary struggled with alegebra. When she would try to solve variables in
+    terms of, say, $y$, in $3 y = 3 x + 3$, she would often see that she
+    needs to divide both sides by $3$ to isolate the $y$ on the LHS, but she
+    would predictably only divide the $x$ by $3$, yielding the incorrect
+    result $y = x + "
+}
+```
 
-> ```latent
-> Let's think step by step:
-> We want to solve the equation $3 y = 3 x + 3$ for $y$.
-> To do this, we need to isolate $y$ on the LHS.
-> What are the steps we need to take to isolate $y$?
-> 1. Divide both sides by $3$.
-> 2. This yields $3y / 3 = 3x / 3 + 3 / 3$.
-> 3. However, we know that Mary probably only divided the $x$ by $3$,
->    so we need to make sure we only divide the $x$ by $3$.
-> 4. This yields $3y / 3 = 3x/3 + 3$.
-> 5. When we simplify, we get $y = x + 3$.
-> We see that she probably incorrectly solved for $y$ as $y = x + 3$. 
-> ```
-> ```observable
-> Mary struggled with alegebra. When she would try to solve variables
-> in terms of, say, $y$, in $3 y = 3 x + 3$, she would often see that
-> she needs to divide both sides by $3$ to isolate the $y$ on the LHS,
-> but she would predictably only divide the $x$  by $3$, yielding the
-> incorrect result $y = x +
-> ``` 
+The `latent` data, including the output from the API call, is **latent** in the sense that it is not used to compute the loss, but is ostensibly only used to help the LLM predict the next token in the obserable data after  `... result $y = x +$`, The loss is only
+computed on the `observable` data.
+
+However, in this case, the output from the API call suggests the output should be `1` (which is technically correct, but not in the given context), and thus may result in reducing prediction quality since Mary incorrectly solved for $y$ as $y = x + 3$.
+
+The LLM may be trained end-to-end on latent enrichments from tools so that it not only learns how to use APIs, but **when** to use them based on the context. The LLM may ignore the latent information from the API call to predict the correct next token, but at face value it seems like the latent information may induce a bias that may be difficult to overcome. It may be alright to fine-tune a model in a way that biases it to produce
+correct output, even at the cost of increasing perplexity on "incorrect" data. This is a
+trade-off that must be considered.
+
+Ideally, the LLM would either not use the `solve` to enrich the context with latent data, or it would use some *other* tool. For instance, it may have used a `let's think step by step` tool to generate the following **enriched** training data:
+
+```json
+{
+  "latent": {
+    "input": "chain-of-thought(observable)",
+    "output":
+    "Let's think step by step:
+      We want to solve the equation $3 y = 3 x + 3$ for $y$.
+      To do this, we need to isolate $y$ on the LHS.
+      What are the steps we need to take to isolate $y$?
+      1. Divide both sides by $3$.
+      2. This yields $3y / 3 = 3x / 3 + 3 / 3$.
+      3. However, we know that Mary probably only divided the $x$ by $3$,
+         so we need to make sure we only divide the $x$ by $3$.
+      4. This yields $3y / 3 = 3x/3 + 3$.
+      5. When we simplify, we get $y = x + 3$.
+         We see that she probably incorrectly solved for $y$ as $y = x + 3$.",
+  "observable":
+  "Mary struggled with alegebra. When she would try to solve variables in terms
+  of, say, $y$, in $3 y = 3 x + 3$, she would often see that she needs to divide
+  both sides by $3$ to isolate the $y$ on the LHS, but she would predictably
+  only divide the $x$  by $3$, yielding the incorrect result $y = x + "
+}
+```
 
 In this case, the LLM may have learned to use the `let's think step by step` tool to generate the **enriched** training data, and thus may have learned to predict the correct (but technically wrong) next token, `3`, from the obserable data.
 
@@ -79,27 +95,31 @@ Imagine now, though, that we have the following continuation in the training dat
 Now, for this particular training data, we might have for the following
 **enriched** training data:
 
-> ```latent
-> Input: `solve("y", "3 y = 3 x + 3")`
-> Output: `y = x + 1`
-> ```
-> ```observable
-> Mary struggled with alegebra. When she would try to solve variables
-> in terms of, say, $y$, in $3 y = 3 x + 3$, she would often see that
-> she needs to divide both sides by $3$ to isolate the $y$ on the LHS,
-> but she would predictably only divide the $x$  by $3$, yielding the
-> incorrect result $y = x + 3$.
->
-> To help her understand her mistake, her teacher, Mr. Smith, pointed
-> out that she only divided the $x$ by $3$, and not the $3$ on the RHS.
-> He reminded her that the equation is like a scale, and that she needs
-> to do the same thing to both sides to keep the scale balanced.
-> If she divides the LHS side by 3, she needs to divide the entire RHS
-> by 3 as well: LHS /3 = RHS / 3. He says to her to place a parenthesis
-> around the RHS, and then divide the expression in the parenthesis by
-> 3. This yields LHS / 3 = (RHS) / 3. He works through the problem with
-> her, and they get the correct answer, $y = x +
-> ``` 
+```json
+{
+  "latent":
+  {
+    "input": "solve(y, 3y = 3x + 3)",
+    "output": "y = x + 1"
+  },
+  "observable":
+    "Mary struggled with alegebra. When she would try to solve variables
+    in terms of, say, $y$, in $3 y = 3 x + 3$, she would often see that
+    she needs to divide both sides by $3$ to isolate the $y$ on the LHS,
+    but she would predictably only divide the $x$  by $3$, yielding the
+    incorrect result $y = x + 3$.
+
+    To help her understand her mistake, her teacher, Mr. Smith, pointed
+    out that she only divided the $x$ by $3$, and not the $3$ on the RHS.
+    He reminded her that the equation is like a scale, and that she needs
+    to do the same thing to both sides to keep the scale balanced.
+    If she divides the LHS side by 3, she needs to divide the entire RHS
+    by 3 as well: LHS /3 = RHS / 3. He says to her to place a parenthesis
+    around the RHS, and then divide the expression in the parenthesis by
+    3. This yields LHS / 3 = (RHS) / 3. He works through the problem with
+    her, and they get the correct answer, $y = x + "
+}
+```
 
 In this case, the `solve` tool generates information that is not only
 correct, but is also useful for predicting the next token, `3`, from
