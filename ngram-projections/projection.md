@@ -2,37 +2,41 @@
 
 ### Abstract
 
-This paper explores the use of inductive biases and projection functions in autoregressive (AR) models to enhance out-of-distribution (OOD) generalization. We revisit the concept of infini-grams, which leverage suffix arrays to manage arbitrary context lengths efficiently. This approach is compared to traditional $n$-gram models, highlighting its advantages in sample efficiency and computational scalability. We delve into various inductive biases, such as the recency bias, shortest edit distance, and semantic similarity, illustrating their impact on AR model performance. By framing OOD generalization as a projection problem, we propose strategies to optimize these projections through meta-learning and nested optimization. Furthermore, we discuss the integration of classical information retrieval techniques and pre-trained language model embeddings to enhance the semantic relevance of projections. Our findings suggest that combining symbolic AI methods with deep learning representations can yield more interpretable and sample-efficient AR models, with broad applications in natural language processing, code generation, and scientific discovery.
+This paper explores the use of inductive biases and projection functions in autoregressive (AR) models to enhance out-of-distribution (OOD) generalization. We revisit the concept of infini-grams, which leverage suffix arrays to manage arbitrary input (context) lengths efficiently. This approach is compared to traditional $n$-gram models, highlighting its advantages in sample efficiency and computational scalability. We delve into various inductive biases, such as the recency bias, shortest edit distance, and semantic similarity, illustrating their impact on AR model performance. By framing OOD generalization as a projection problem, we propose strategies to optimize these projections through meta-learning and nested optimization. Furthermore, we discuss the integration of classical information retrieval techniques and pre-trained language model embeddings to enhance the semantic relevance of projections. Our findings suggest that combining symbolic AI methods with deep learning representations can yield more interpretable and sample-efficient AR models, with broad applications in natural language processing, code generation, and scientific discovery.
 
 ## Introduction
 
-The infini-gram model is an autoregressive (AR) model that predicts the next token based on the longest suffix in the training data that matches the context. Essentially, they are finding some *projection* of the input (context) to the training data to allow the AR model to generate coherent text continuations from inputs it has never seen before. This is known as out-of-distribution (OOD) generalization, where we are trying to generalize to tasks (like predict continuations of an input never seen before) that is not in the training data.
+The infini-gram model is an autoregressive (AR) model that predicts the next token based on the longest suffix in the training data that matches the input. Essentially, they are finding some *projection* of the input to the training data to allow the AR model to generate coherent text continuations from inputs it has never seen before. This is known as out-of-distribution (OOD) generalization, where we are trying to generalize to tasks (like predict continuations of an input never seen before) that is not in the training data.
 
-In this paper, we seek to generalize the concept of projections to a broader class of inductive biases that can be used to improve the sample efficiency of AR models and discuss how these inductive biases can be used to improve out-of-distribution (OOD) generalization.
+Since the model converges in distribution to the data generating process (DGP) as the sample size goes to infinity, the key challenge is to find sample-efficient inductive biases that provide the model with more information about the task or the DGP, allowing it to generalize to OOD data more effectively and with fewer samples.
+
+In this paper, we seek to formalize a class of inductive biases as *projections* of the input onto the training data.
  
-## Autoregressive (AR) Models
+## AR Models
 
-Autoregressive (AR) models form a cornerstone in natural language processing, predicting the probability of a word $w_t$ given all preceding words $w_{<t}$ and the training data $D$:
+AR models form a cornerstone in natural language processing, predicting the probability of a word $w_t$ given all preceding words $w_{<t}$ and the training data $D$:
 
 $$
-\Pr_D\{w_t \mid w_{<t}\}.
+\Pr\!{}_D\{w_t \mid w_{<t}\}.
 $$
 
 Historically, the prefix $w_{<t}$ is limited to a fixed length $n$,
 
 $$
-\Pr_D\{w_t \mid w_{t-n:t}\},
+\Pr\!{}_D\{w_t \mid w_{t-n:t}\},
 $$
+
 where $a:b$ denotes the range $a, a+1, \ldots, b-1$.
 
-Infini-gram models dynamically adjust the context length based on the longest suffix in the training data that matches the context:
+Infini-gram models dynamically adjust the order of the  $n$-gram based on the longest suffix in the training data that matches the input:
 
 $$
-\Pr\{w_t \mid \operatorname{longest\_suffix}_D(w_{<t})\},
+\Pr\!{}_D\{w_t \mid \operatorname{longest\_suffix}_D(w_{<t})\},
 $$
+
 where $\operatorname{longest\_suffix}_D$ finds the longest suffix of the context $w_{<t}$ in the training data $D$.
 
-For autoregressive models to generate continuations of the input, $\operatorname{longest\_suffix}$ makes a lot of sense. It allows the model to find training data that is both similiar to the input and relevant to the task at hand: predicting the next token from previous tokens.
+For AR models to generate continuations of the input, $\operatorname{longest\_suffix}$ makes a lot of sense. It allows the model to find training data that is both similiar to the input and relevant to the task of predicting the next token from previous tokens.
 
 Let's be a bit formal about what $\operatorname{longest\_suffix}_D$ represents: it is a kind of *projection* of the input onto the training data $D$, which is an i.i.d. sample from some (unknown) data generating process (DGP). Let us denote the probability distribution of the DGP as $\Pr{}_{\!\theta}$, where $\theta$ are unknown parameters, and the probability distribution of the AR model as $\Pr{}_{\!\hat\theta}$, where $\hat\theta$ are the estimated parameters of the AR model based on the training data $D$.
 
@@ -57,23 +61,9 @@ $$
 w_{t:(t+k)}^* = \arg\max_{w_{t:(t+k)}} \Pr{}_{\!\theta}\{w_{t:(t+k)} \mid w_{<t}\},
 $$
 
-but rather we are *sampling* from the distribution. We identify three justifications
-for doing this:
+but rather we are *sampling* from the distribution. We identify a few justifications for doing this:
 
-1. The DGP $\Pr{}_\theta$ is often stochastic and we capture this stochasticity in our predictions or continuations. However, even if the DGP is not stochastic, we only have an uncertain estimate $\Pr{}_{\!\hat\theta}$ conditioned on data $D$ randomly sampled from data by the DGP. So, sampling from it is a way of generating continuations that reflect the uncertainty.
-
-
-Note that we could also estimate the *sampling* distribution of the model estimate by resampling from the data $D$. The empirical sampling distribution of the model estimate is given by $\{\hat\theta^j\}_{j=1}^R$, where $R$ is the number of resamples (with replacement) from $D$ and $\hat\theta_j$ is the $j$-th estimate based on the resampled data:
-
-$$
-\hat\theta_b^j = \arg\max_{\theta} \prod_{t=1}^T \Pr{}_{D^j}{\!\theta}\{w_t \mid w_{<t}\},
-$$
-
-where $D^j$ is the $j$-th resample of the data $D$. Since $\hat\theta^j$ is an estimate of the model parameters based on the resampled data $D^j$, by the plug-in principle, we can estimate the sampling distribution of the model as:
-
-$$
-\{ \Pr{}_{\!\hat\theta^j}} \}_{j=1}^R.
-$$
+1. The DGP $\Pr{}_\theta$ is often stochastic and we capture this stochasticity in our predictions or continuations. However, even if the DGP is not stochastic, we only have an uncertain estimate $\Pr{}_{\!\hat\theta}$ conditioned on data $D$ randomly sampled from data by the DGP. So, sampling from it is a way of generating continuations that reflect the uncertainty. See Appendix F: Bootstrapping the Sampling Distribution for a more rigorous way to estimate uncertainty in the model as opposed to the DGP.
 
 2. There is a trade-off between exploration and exploitation, where the model needs to balance between generating plausible continuations and exploring new possibilities.
 
@@ -82,40 +72,35 @@ $$
 Since we do know know the DGP $\Pr_{\!\theta}$, we replace it with our AR model based on a training data $D$, $\Pr{}_{\!\hat\theta}$, and use the AR model to approximate the DGP. As the sample size goes to infinity, by the law of large numbers, the empirical distribution of the training data will converge to the true distribution of the DGP:
 
 $$
-\lim_{n \to \infty} \Pr{}_{\!\hat\theta}\{w_t \mid w_{<t}, D_n\} = \Pr{}_{\!\theta}\{w_t \mid w_{<t}\}
+\Pr{}_{\!\hat\theta}\{w_t \mid w_{<t}\} \rightarrow_d \Pr{}_{\!\theta}\{w_t \mid w_{<t}\}.
 $$
 
-Note that it is interesting that the DGP is asymptotically representable by the AR model, i.e., as the sample size goes to infinity, the AR model will converge to the DGP. 
+The Infini-gram model converges in distribution to the DGP, but we do not have *infinite* data. Thus, since virtually all inputs have never been senn before, we are interested in finding ways to allow the model to generalize *out-of-distribution* (OOD). On the task of next-token prediction, this means generating continuations of the input that the DGP would plausibly produce but are not in the training data.
 
+This is a key challenge in machine learning. Ideally, we want the AR model to generate plausible continuations of any input from very small amounts of training data $D$. A primary way to do this is to *constrain* or *bias*, which we call an *inductive bias*.
 
-However, we do not have *infinite* training data, so we need to find a way to generalize to OOD data, like continuations of the input that the DGP would plausibly produce but are not in the training data. We call this *out-of-distribution* (OOD) generalization, and it is a key challenge in machine learning. Ideally, we want the AR model to generate plausible continuations of any input from very small amounts of training data $D$.
-A primary way to do this is to *constrain* the model using what we call *inductive biases*.
+The projection function $\operatorname{longest\_suffix}_D$ is an example of an inductive bias. It is a way for the model to find the most relevant part of the training data to the input to give it some ability to generalize OOD on the task of generating plausible continuations of the input.
 
-The projection function $\operatorname{longest\_suffix}$ is an example of an inductive bias. It is a way for the model to find the most relevant part of the training data to the input to give it some ability to generalize OOD on the task of predicting the next token (or, equivalently, generating continuations of the input).
-
-We formalize this idea of projection as an *inductive bias* and discuss how it can be used to improve the sample efficiency of both $n$-gram models and AR models, like transformers, LSTMs, and RNNs.
+We formalize this idea of projection as an inductive bias and discuss how it can be used to improve the sample efficiency of both $n$-gram models and AR models, like transformers, LSTMs, and RNNs.
 
 ## Inductive Biases
 
-The projection function $\operatorname{longest\_suffix}$ is what we call an *inductive bias*. Inductive biases are assumptions or constraints that help the model generalize from the training data to unseen data.
-This is known as OOD (out-of-distribution) generalization. Since the empirical distribution (the training data) converges to the true distribution (the DGP) as the sample size goes to infinity, the key challenge is finding *sample efficient* models.
+Given two learning algorithms, $A$ and $B$, if $A$ requires fewer samples to do well on a task than $B$, then $A$ is more sample-efficient than $B$ on that task. In the context of $n$-gram models, the task is to predict the next token given a sequence of previous tokens. One way to improve sample efficiency is to choose an inductive bias that provides the model with more information about the task or the DGP, allowing it to generalize to OOD data more effectively and with fewer samples.
 
-Given two learning algorithms, $A$ and $B$, if $A$ requires fewer samples to do well on a task than $B$, then $A$ is more sample-efficient than $B$ on that task. In the context of AR models, the task is to predict the next token given a sequence of previous tokens. One way to improve sample efficiency is to choose an inductive bias that provides the model with more information about the task or the DGP, allowing it to generalize to OOD data more effectively and with fewer samples.
-
-The $\operatorname{longest\_suffix}$ projection is an inductive bias that we might label the *recency bias*. The recency bias has several advantages:
+The $\operatorname{longest\_suffix}_D$ projection is an inductive bias that we might label the *recency bias*. The recency bias has some advantages:
 
 1. It is computationally efficient, as shown by the suffix array data structure used in the infini-gram model. It only requires a linear scan of the training data to find the longest suffix. This scalability is crucial for training on large datasets, as the time complexity of the recency bias is $O(n)$, where $n$ is the length of the context.
 
 2. It corresponds to a simple inductive bias that is easy to understand, implement, and justify. If the future is like the past, then the most recent past is often the most relevant data point. This is particularly relevant for tasks like language modeling, where the context is often a sequence of words that are related to each other in a temporal order and in which the most recent words are often the most relevant for predicting the next word.
 
-Clearly, the recency bias may not always help to find the most relevant context in the training data, e.g., the most relevant context may be at the start of a document. However, even when the most relevnat context is the most recent, the $\operatorname{longest\_suffix}$ may fail to properly use it. For example, if the context is "the dog ran after the" and we ask it to predict the next word, but the training data only contains "the dog chased the cat", the longest suffix is the highly uninformative word "the". We see that the naive longest suffix match fails to take into account the semantic similarity between token sequences like "chased" and "ran after".
+The recency bias may not always help to find the most relevant context in the training data, e.g., the most relevant context may be at the start of a document. However, even when the most relevnat context is the most recent, the $\operatorname{longest\_suffix}$ may fail to properly use it. For example, if the context is `the dog ran after the` and we ask it to predict the next word, but the training data only contains `the dog chased the cat`, the longest suffix is the highly uninformative word `the`. We see that the naive longest suffix match fails to take into account slight variations, even if those slight variations have essentially identical meanings.
 
 These challenges suggest some possible inductive biases that can be used to improve the OOD generalization of $\Pr{}_{\hat\theta}$. We consider the set of inductive biases that can be formulated as *projections* of the input (context) onto the training data. Let us formally write down the problem of OOD generalization in the context of AR models as a projection problem:
 
 $$
-\Pr\{w_t \mid \operatorname{proj}_D(w_{<t}), D\},
+\Pr\!{}_D\{w_t \mid \operatorname{proj}_D(w_{<t})\},
 $$
-where $\operatorname{proj}_D$ is a function that maps the input $w_{<t}$ to a subset of the training data $D$ that is most relevant for producing continuations of the input that the data generating process (DGP) would *likely* produce.
+where $\operatorname{proj}_D$ is a function that maps the input $w_{<t}$ to a subset of the training data $D$ that is most relevant for producing continuations of the $w_{<t}$ that the DGP would *likely* produce.
 
 ## Learing the Projection Function
 
@@ -126,7 +111,7 @@ $$
 $$
 
 where $\beta$ is an index or label that specifies the projection. For example, $\beta = 1$ could be a label
-for $\operatorname{longest\_suffix}$, or it could be something more complicated based on the
+for $\operatorname{longest\_suffix}_D$, or it could be something more complicated based on the
 space of possible projections $\mathcal{F}$.
 
 We can choose a projection function from $\mathcal{F}$ by choosing a $\beta$ in $\mathcal{B}$, which is frequently a discrete set of possible projections.
@@ -137,7 +122,7 @@ We choose the projection function in one or two ways:
 
 - Treat it as an optimization (search or learning) problem, where $\beta$ is a tunable parameter of the model.
 
-The second approach is more general and can be used to optimize the projection function based on the data $D$ and the task we are measuring performance on. Note that because the projection function $\operatorname{proj}_D(\cdot;\beta)$ is intended to improve OOD generalization performance, we do not optimize it on the training data $D$ but on a held-out validation set $D'$.
+The second approach is more general and can be used to optimize the projection function based on the data $D$ and the task we are measuring performance on. Note that because the projection function $\operatorname{proj}_D(\cdot;\beta)$ is intended to improve OOD generalization performance, we do not optimize it on the training data $D$ but on a held-out test data $D'$.
 
 The optimization problem is then conceptualized as an iterated two-stage process.
 
@@ -145,19 +130,18 @@ The optimization problem is then conceptualized as an iterated two-stage process
 
 2. **Stage 1:** Optimize the parameters of the AR model $\theta$ on the training data $D$ using $\operatorname{proj}_D(\cdot;\beta_{i-1})$:
 
-$$
-\hat\theta_i = \arg\max_{\theta} \prod_{t=1}^T \Pr{}_{\!\theta}(w_t \mid \operatorname{proj}_{D}(w_{<t}; \beta_{i-1})).
-$$
+    $$
+    \hat\theta_i = \arg\max_{\theta} \prod_{t=1}^T \Pr{}_{\!\theta}(w_t \mid \operatorname{proj}_{D}(w_{<t}; \beta_{i-1})).
+    $$
 
-3. **Stage 2:** Optimize the parameters of the projection function indexed by $\beta_i$ on the validation data $D'$ using the AR model indexed by $\hat\theta_i$:
+3. **Stage 2:** Optimize the parameters of the projection function indexed by $\beta_i$ on the test data $D'$ using the AR model indexed by $\hat\theta_i$:
+    $$
+    \hat\beta_i = \arg\max_{\beta} \prod_{t=1}^T
+    \Pr{}_{\!\hat\theta_i}(w_t \mid \operatorname{proj}_{D'}(w_{<t}; \hat\beta_i)),
+    $$
+    where $D'$ is test data $D'$ (e.g., held-out test data) used to estimate the quality of the projection function.
 
-$$
-\hat\beta_i = \arg\max_{\beta} \prod_{t=1}^T
-\Pr{}_{\!\hat\theta_i}(w_t \mid \operatorname{proj}_{D'}(w_{<t}; \hat\beta)),
-$$
 
-where $D'$ is test data $D'$ (e.g., held-out test data) used to estimate the quality of the projection function.
-   
 4. **Convergence Test:** If the parameters $\hat\theta_i$ and $\hat\beta_i$ have converged, stop. Otherwise, set $i = i + 1$ and go to step 2 (Stage 1).
 
 To mitigate overfitting on the test data, we can use strategies like early stopping, where we stop the optimization process before convergence, or choose different test data at each iteration.
@@ -374,3 +358,23 @@ where $\operatorname{segments}_\beta(D)$ is a segmentation strategy of the data 
 
 We can use the inferred $\beta$ to find the most relevant segments in the training data to the input, and then use the AR model to generate continuations of the input based on these segments.
 
+### F: Bootstrapping the Sampling Distribution {-}
+
+Note that we could also estimate the *sampling* distribution of the model estimate by resampling from the data $D$. The empirical sampling distribution of the model estimate is given by $\{\hat\theta^j\}_{j=1}^R$, where $R$ is the number of resamples (with replacement) from $D$ and $\hat\theta_j$ is the $j$-th estimate based on the resampled data:
+
+$$
+\hat\theta_b^j = \arg\max_{\theta} \prod_{t=1}^T \Pr{}_{\!D^j}\{w_t \mid w_{<t}\},
+$$
+
+where $D^j$ is the $j$-th resample of the data $D$. Since $\hat\theta^j$ is an estimate of the model parameters based on the resampled data $D^j$, by the plug-in principle, we can estimate the sampling distribution of the model as
+
+$$
+\Bigl \{ \Pr{}_{\!\hat\theta^j} \Bigr\}_{j=1}^R.
+$$
+
+#### Quantifying Uncertainty and Confidence Intervals {-}
+
+To generate confidence intervals of, say, the predictive
+distribution of the model, we can sample a model from the sampling distribution and provide the input to the model to produce the set of next-token probabilities. We can do this $B$ times to get a set of $B$ next-token probabilities, and thus for each next-token, we can generate a confidence interval for its probability.
+
+This is not easy to do with the neural language models because they are computationally expensive to train. For the Infini-gram model, we can just resample the documents in the training data $D$.
