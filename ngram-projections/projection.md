@@ -15,34 +15,34 @@ In this paper, we seek to generalize the concept of projections to a broader cla
 Autoregressive (AR) models form a cornerstone in natural language processing, predicting the probability of a word $w_t$ given all preceding words $w_{<t}$ and the training data $D$:
 
 $$
-\Pr\{w_t \mid w_{<t}, D\}.
+\Pr_D\{w_t \mid w_{<t}\}.
 $$
 
 Historically, the prefix $w_{<t}$ is limited to a fixed length $n$,
 
 $$
-\Pr\{w_t \mid w_{t-n:t}, D\},
+\Pr_D\{w_t \mid w_{t-n:t}\},
 $$
 where $a:b$ denotes the range $a, a+1, \ldots, b-1$.
 
 Infini-gram models dynamically adjust the context length based on the longest suffix in the training data that matches the context:
 
 $$
-\Pr\{w_t \mid \operatorname{longest\_suffix}(w_{<t}, D), D\},
+\Pr\{w_t \mid \operatorname{longest\_suffix}_D(w_{<t})\},
 $$
-where $\operatorname{longest\_suffix}$ finds the longest suffix of the context $w_{<t}$ in the training data $D$.
+where $\operatorname{longest\_suffix}_D$ finds the longest suffix of the context $w_{<t}$ in the training data $D$.
 
 For autoregressive models to generate continuations of the input, $\operatorname{longest\_suffix}$ makes a lot of sense. It allows the model to find training data that is both similiar to the input and relevant to the task at hand: predicting the next token from previous tokens.
 
-Let's be a bit formal about what $\operatorname{longest\_suffix}$ represents: it is a kind of *projection* of the input onto the training data $D$, which is an i.i.d. sample from some (unknown) data generating process (DGP). Let us denote the probability distribution of the DGP as $\Pr{}_{\!\theta}$, where $\theta$ are unknown parameters, and the probability distribution of the AR model as $\Pr{}_{\!\hat\theta}$, where $\hat\theta$ are the estimated parameters.
+Let's be a bit formal about what $\operatorname{longest\_suffix}_D$ represents: it is a kind of *projection* of the input onto the training data $D$, which is an i.i.d. sample from some (unknown) data generating process (DGP). Let us denote the probability distribution of the DGP as $\Pr{}_{\!\theta}$, where $\theta$ are unknown parameters, and the probability distribution of the AR model as $\Pr{}_{\!\hat\theta}$, where $\hat\theta$ are the estimated parameters of the AR model based on the training data $D$.
 
 The goal of the AR model is to estimate $\theta$ from the training data, which will allow it to generalize to new data that the DGP would plausibly produce. A paricularly useful task is to predict what the DGP would plausibly produce *given* some input $w_{<t}$, where $w_{<t}$ is a sequence of tokens that the DGP has produced so far and may represent some task of interest, like "What is the solution to \<math problem\>?"
+
 
 The distribution of $w_{t:t+k}$ conditioned on $w_{<t}$ is given by
 
 $$
-\Pr{}_{\!\theta}\{w_{t:t+k} \mid w_{<t}\} = 
-    \frac{\Pr{}_{\!\theta}\{w_{1:(t+k)}\}}{\Pr{}_{\!\theta}\{w_{1:t}\}},
+\Pr{}_{\!\theta}\{w_{t:t+k} \mid w_{<t}\} = \frac{\Pr{}_{\!\theta}\{w_{1:(t+k)}\}}{\Pr{}_{\!\theta}\{w_{1:t}\}},
 $$
 
 where $w_{a:b}$ is a sub-sequence of tokens produced by the DGP from time $a$ to time $b$ (time is a *logical time* that just implies some ordering). The primary task is often to *generate* plausible continuations of the input, for which there are many possible *sampling* strategies to do this, like beam search, top-$k$ sampling, and nucleus sampling, all of which use the conditional probability distribution to generate continuations one token at a time. This approach is justfied by the chain rule of probability:
@@ -51,21 +51,42 @@ $$
 \Pr{}_{\!\theta}\{w_t \mid w_{<t}\} = \prod_{i=1}^t \Pr{}_\theta\{w_i \mid w_{<i}\}.
 $$
 
-Notice that we are not necessarily trying to find a sequence that *maximizes* the conditional probability,
+Notice that when we generate continuations of the input, we are not trying to find a sequence that *maximizes* the conditional probability:
 
 $$
 w_{t:(t+k)}^* = \arg\max_{w_{t:(t+k)}} \Pr{}_{\!\theta}\{w_{t:(t+k)} \mid w_{<t}\},
 $$
 
-but rather we are *sampling* from the distribution. This is because the DGP is often stochastic and we are trying to capture this stochasticity in our predictions or continuations. (There is also a trade-off between exploration and exploitation, where the model needs to balance between generating plausible continuations and exploring new possibilities.)
+but rather we are *sampling* from the distribution. We identify three justifications
+for doing this:
 
-It is also worth pointing out that finding the most likely sequence of tokens is an NP-hard problem, so we often resort to approximate methods like beam search to find a good sequence of tokens that is likely to be produced by the DGP.
+1. The DGP $\Pr{}_\theta$ is often stochastic and we capture this stochasticity in our predictions or continuations. However, even if the DGP is not stochastic, we only have an uncertain estimate $\Pr{}_{\!\hat\theta}$ conditioned on data $D$ randomly sampled from data by the DGP. So, sampling from it is a way of generating continuations that reflect the uncertainty.
+
+
+Note that we could also estimate the *sampling* distribution of the model estimate by resampling from the data $D$. The empirical sampling distribution of the model estimate is given by $\{\hat\theta^j\}_{j=1}^R$, where $R$ is the number of resamples (with replacement) from $D$ and $\hat\theta_j$ is the $j$-th estimate based on the resampled data:
+
+$$
+\hat\theta_b^j = \arg\max_{\theta} \prod_{t=1}^T \Pr{}_{D^j}{\!\theta}\{w_t \mid w_{<t}\},
+$$
+
+where $D^j$ is the $j$-th resample of the data $D$. Since $\hat\theta^j$ is an estimate of the model parameters based on the resampled data $D^j$, by the plug-in principle, we can estimate the sampling distribution of the model as:
+
+$$
+\{ \Pr{}_{\!\hat\theta^j}} \}_{j=1}^R.
+$$
+
+2. There is a trade-off between exploration and exploitation, where the model needs to balance between generating plausible continuations and exploring new possibilities.
+
+3. Finding the most likely sequence of tokens is NP-hard, so we often resort to approximate methods like greedily sampling from the conditional distribution one token at at time, or using more accurate but computationally expensive methods like beam search to find more likely sequences of tokens.
 
 Since we do know know the DGP $\Pr_{\!\theta}$, we replace it with our AR model based on a training data $D$, $\Pr{}_{\!\hat\theta}$, and use the AR model to approximate the DGP. As the sample size goes to infinity, by the law of large numbers, the empirical distribution of the training data will converge to the true distribution of the DGP:
 
 $$
 \lim_{n \to \infty} \Pr{}_{\!\hat\theta}\{w_t \mid w_{<t}, D_n\} = \Pr{}_{\!\theta}\{w_t \mid w_{<t}\}
 $$
+
+Note that it is interesting that the DGP is asymptotically representable by the AR model, i.e., as the sample size goes to infinity, the AR model will converge to the DGP. 
+
 
 However, we do not have *infinite* training data, so we need to find a way to generalize to OOD data, like continuations of the input that the DGP would plausibly produce but are not in the training data. We call this *out-of-distribution* (OOD) generalization, and it is a key challenge in machine learning. Ideally, we want the AR model to generate plausible continuations of any input from very small amounts of training data $D$.
 A primary way to do this is to *constrain* the model using what we call *inductive biases*.
