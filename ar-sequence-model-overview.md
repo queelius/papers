@@ -21,7 +21,7 @@ p_\theta(x_n | x_{<n}) = \frac{p_\theta(x_{\leq n})}{p_\theta(x_{<n})},
 $$
 and so we see that the probability of the sequence is given by
 $$
-p_\theta(x) = \prod_{i=1}^n \frac{p_\theta(x_{\leq i})}{p_\theta(x_{<i})}.
+p_\theta(x) = p_\theta(x_n) \prod_{i=1}^{n-1} \frac{p_\theta(x_{\leq i})}{p_\theta(x_{<i})}.
 $$
 
 We can then define the log-likelihood of the sequence as

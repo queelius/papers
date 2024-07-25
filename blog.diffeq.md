@@ -144,5 +144,5 @@ Symplectic integrators are a class of numerical integration methods that are par
 
 ## Conclusion
 
-Understanding and solving differential equations is a multi-faceted challenge that spans from pure mathematics to computational physics. From the elegance of analytical solutions to the robustness of numerical methods, the journey of solving these equations is a cornerstone of scientific inquiry.
+Understanding and solving differential equations is a multi-faceted challenge that spans from pure mathematics to computational physics. From the elegance of analytical solutions to the robustness of numerical methods, the sometimes frustrating process of solving these equations is a cornerstone of scientific inquiry.
 
